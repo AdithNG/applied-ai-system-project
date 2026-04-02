@@ -9,3 +9,13 @@ id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness
 8,Night Drive Loop,Neon Echo,synthwave,moody,0.75,110,0.49,0.73,0.22
 9,Focus Flow,LoRoom,lofi,focused,0.40,80,0.59,0.60,0.78
 10,Rooftop Lights,Indigo Parade,indie pop,happy,0.76,124,0.81,0.82,0.35
+11,City Cipher,Block Theory,hip-hop,energetic,0.85,95,0.72,0.87,0.12
+12,Golden Fields,Sage & Rye,country,relaxed,0.44,104,0.78,0.61,0.80
+13,Velvet Nights,Sarai Monroe,r&b,romantic,0.58,96,0.83,0.72,0.42
+14,Moonlight Sonata Redux,Clara Voss,classical,sad,0.22,66,0.38,0.28,0.97
+15,Drop Zone,Synthex,electronic,energetic,0.95,140,0.65,0.94,0.04
+16,Iron Curtain,Deadweight,metal,aggressive,0.97,168,0.31,0.55,0.06
+17,Porch Swing Summer,The Drifters,country,happy,0.55,108,0.88,0.67,0.74
+18,Late Night Thoughts,Kai Blue,r&b,moody,0.48,88,0.52,0.64,0.58
+19,Requiem for a Tuesday,Clara Voss,classical,sad,0.18,58,0.27,0.22,0.98
+20,Backstreet Hustle,Block Theory,hip-hop,focused,0.78,102,0.66,0.83,0.15
