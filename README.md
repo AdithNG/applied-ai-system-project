@@ -10,6 +10,56 @@ The recommender uses a weighted scoring formula: genre similarity is worth the m
 
 ## How The System Works
 
+### How Real-World Recommendation Systems Work
+
+Platforms like Spotify and YouTube use two main strategies to decide what to play next:
+
+**Collaborative Filtering** uses the behavior of *other users* to make predictions. If thousands of people who listened to Artist A also listened to Artist B, the system infers that you — as a fan of Artist A — might enjoy Artist B too, even if it has never analyzed Artist B's sound. The core idea is: "people like you also liked this." Netflix popularized this approach. The main limitation is the *cold start problem*: a brand new song with no listening history can't be recommended, because there's no user behavior data yet to draw from.
+
+**Content-Based Filtering** uses the *attributes of the song itself* to make predictions. Instead of looking at what other people played, it measures things like tempo, energy, mood, and genre, then matches those attributes to what a user has expressed they enjoy. Spotify's audio analysis pipeline (which powers features like Discover Weekly) extracts over 10 audio features per track — including acousticness, valence, danceability, and loudness — and uses them to find songs that "sound like" what you already listen to. The advantage is that brand new songs can be recommended immediately as long as their audio features are known.
+
+Most real platforms combine both approaches in a hybrid model. For this simulation, we implement **content-based filtering only**, which is the more transparent and explainable of the two.
+
+**Main data types real systems rely on:**
+
+| Data Type | Examples | Used in |
+|---|---|---|
+| Explicit signals | Likes, dislikes, saves, playlist adds | Collaborative filtering |
+| Implicit signals | Skips, replays, listen duration, share | Collaborative filtering |
+| Audio features | Tempo, energy, valence, mood, key | Content-based filtering |
+| Metadata | Genre, artist, release year, lyrics | Content-based filtering |
+| Context | Time of day, device, location | Hybrid |
+
+---
+
+### Feature Analysis — What Works Best for Content-Based Filtering
+
+Looking at the attributes in `data/songs.csv` — genre, mood, energy, tempo_bpm, valence, danceability, and acousticness — the most effective features for a simple content-based recommender are:
+
+1. **Genre** — The strongest categorical signal. A user who wants rock almost never wants classical, regardless of how similar the energy levels are. Worth the highest weight.
+2. **Mood** — The second strongest categorical signal. "Chill" and "intense" represent very different listening contexts. A mood mismatch is a strong negative signal.
+3. **Energy** — The most useful *continuous* feature. Unlike tempo (which varies widely even within a genre), energy is normalized to 0–1 and directly maps to how "active" or "passive" a listening session feels. Rewarding closeness rather than raw value is key — a user who wants 0.5 energy should score a 0.48-energy song higher than a 0.9-energy song, even though 0.9 is objectively "more."
+4. **Acousticness** — Useful as a secondary filter, especially for distinguishing between electronic and organic sounds within the same genre (e.g., a lofi fan may still prefer acoustic over synthesized tracks).
+5. **Valence and danceability** — Useful but redundant with mood + energy for a simple system. In a more advanced version these would add nuance (a "happy" song can be high or low danceability; valence distinguishes genuine positivity from aggressive intensity).
+
+**Personal vibe evaluation:** Energy and mood together capture about 80% of what makes a song feel right for a given moment. Genre acts as a hard boundary. Tempo and danceability feel secondary — a 90 BPM jazz track and a 90 BPM lofi track feel nothing alike, so raw tempo has low standalone value. This matches what Spotify's own research has shown: valence and energy are their two most predictive audio features for mood-based recommendations.
+
+---
+
+### Why We Need Both a Scoring Rule and a Ranking Rule
+
+A **Scoring Rule** answers: *"How well does this one song match this user?"* It takes a single song and a user profile and returns a number. Without it, we have no way to quantify fit.
+
+A **Ranking Rule** answers: *"Given scores for all songs, which ones should we actually show?"* It takes the full list of scored songs and returns the top k in order. Without it, we have a number for every song but no way to surface the best ones.
+
+You need both because they solve different problems:
+- The Scoring Rule is a **judge** — it evaluates one candidate at a time.
+- The Ranking Rule is a **tournament** — it compares all candidates and picks winners.
+
+If you only had a Scoring Rule, you could tell a user "Sunrise City scores 3.98" but you couldn't tell them whether that's good or bad relative to the other 19 songs. If you only had a Ranking Rule without a per-song score, you couldn't explain *why* a song ranked where it did. Together they produce both ranked results and transparent explanations — which is exactly what this system delivers.
+
+---
+
 ### Song Features
 
 Each song in `data/songs.csv` has the following attributes:
