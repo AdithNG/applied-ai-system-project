@@ -29,6 +29,7 @@ def print_recommendations(label: str, user_prefs: dict, songs: list, k: int = 5)
 
 def main() -> None:
     songs = load_songs("data/songs.csv")
+    print(f"Loaded songs: {len(songs)}")
 
     # Profile 1: High-Energy Pop
     print_recommendations(

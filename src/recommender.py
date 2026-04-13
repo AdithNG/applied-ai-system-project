@@ -27,8 +27,28 @@ class UserProfile:
     likes_acoustic: bool
 
 
+def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
+    """Score a single song dict against user preference dict; return (score, reasons)."""
+    score = 0.0
+    reasons = []
+
+    if song.get("genre") == user_prefs.get("genre"):
+        score += 2.0
+        reasons.append("genre match (+2.0)")
+
+    if song.get("mood") == user_prefs.get("mood"):
+        score += 1.0
+        reasons.append("mood match (+1.0)")
+
+    energy_points = round(1.0 - abs(song.get("energy", 0.5) - user_prefs.get("energy", 0.5)), 2)
+    score += energy_points
+    reasons.append(f"energy proximity (+{energy_points})")
+
+    return round(score, 2), reasons
+
+
 def _score_song_obj(user: UserProfile, song: Song) -> Tuple[float, List[str]]:
-    """Compute a score and reasons for a Song object against a UserProfile."""
+    """Score a Song dataclass against a UserProfile; return (score, reasons)."""
     score = 0.0
     reasons = []
 
@@ -51,26 +71,6 @@ def _score_song_obj(user: UserProfile, song: Song) -> Tuple[float, List[str]]:
     return round(score, 2), reasons
 
 
-def _score_song_dict(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
-    """Compute a score and reasons for a song dict against a user prefs dict."""
-    score = 0.0
-    reasons = []
-
-    if song.get("genre") == user_prefs.get("genre"):
-        score += 2.0
-        reasons.append("genre match (+2.0)")
-
-    if song.get("mood") == user_prefs.get("mood"):
-        score += 1.0
-        reasons.append("mood match (+1.0)")
-
-    energy_points = round(1.0 - abs(song.get("energy", 0.5) - user_prefs.get("energy", 0.5)), 2)
-    score += energy_points
-    reasons.append(f"energy proximity (+{energy_points})")
-
-    return round(score, 2), reasons
-
-
 class Recommender:
     """OOP implementation of the recommendation logic. Required by tests/test_recommender.py"""
 
@@ -79,9 +79,12 @@ class Recommender:
 
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
         """Return the top k songs ranked by weighted score for the given user."""
-        scored = [(_score_song_obj(user, song)[0], song) for song in self.songs]
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [song for _, song in scored[:k]]
+        scored = sorted(
+            self.songs,
+            key=lambda song: _score_song_obj(user, song)[0],
+            reverse=True,
+        )
+        return scored[:k]
 
     def explain_recommendation(self, user: UserProfile, song: Song) -> str:
         """Return a human-readable explanation of why this song was recommended."""
@@ -106,12 +109,14 @@ def load_songs(csv_path: str) -> List[Dict]:
 
 
 def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
-    """Score and rank songs against user preferences; return top k as (song, score, explanation) tuples."""
-    scored = []
-    for song in songs:
-        score, reasons = _score_song_dict(user_prefs, song)
-        explanation = ", ".join(reasons)
-        scored.append((song, score, explanation))
+    """Score and rank all songs; return top k as (song, score, explanation) tuples.
 
-    scored.sort(key=lambda x: x[1], reverse=True)
-    return scored[:k]
+    Uses sorted() instead of list.sort() so the original songs list is not mutated.
+    sorted() returns a new list, making this function free of side effects.
+    """
+    scored = [
+        (song, *score_song(user_prefs, song))
+        for song in songs
+    ]
+    ranked = sorted(scored, key=lambda x: x[1], reverse=True)
+    return [(song, score, ", ".join(reasons)) for song, score, reasons in ranked[:k]]

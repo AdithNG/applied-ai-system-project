@@ -191,6 +191,73 @@ flowchart TD
 pytest
 ```
 
+### Sample Terminal Output
+
+Running `python -m src.main` produces the following output:
+
+```
+Loaded songs: 20
+
+==================================================
+Profile: High-Energy Pop
+Preferences: {'genre': 'pop', 'mood': 'happy', 'energy': 0.8}
+==================================================
+Sunrise City - Score: 3.98
+Because: genre match (+2.0), mood match (+1.0), energy proximity (+0.98)
+
+Gym Hero - Score: 2.87
+Because: genre match (+2.0), energy proximity (+0.87)
+
+Rooftop Lights - Score: 1.96
+Because: mood match (+1.0), energy proximity (+0.96)
+
+Porch Swing Summer - Score: 1.75
+Because: mood match (+1.0), energy proximity (+0.75)
+
+Backstreet Hustle - Score: 0.98
+Because: energy proximity (+0.98)
+
+
+==================================================
+Profile: Chill Lofi
+Preferences: {'genre': 'lofi', 'mood': 'chill', 'energy': 0.4}
+==================================================
+Midnight Coding - Score: 3.98
+Because: genre match (+2.0), mood match (+1.0), energy proximity (+0.98)
+
+Library Rain - Score: 3.95
+Because: genre match (+2.0), mood match (+1.0), energy proximity (+0.95)
+
+Focus Flow - Score: 3.00
+Because: genre match (+2.0), energy proximity (+1.0)
+
+Spacewalk Thoughts - Score: 1.88
+Because: mood match (+1.0), energy proximity (+0.88)
+
+Coffee Shop Stories - Score: 0.97
+Because: energy proximity (+0.97)
+
+
+==================================================
+Profile: Deep Intense Rock
+Preferences: {'genre': 'rock', 'mood': 'intense', 'energy': 0.9}
+==================================================
+Storm Runner - Score: 3.99
+Because: genre match (+2.0), mood match (+1.0), energy proximity (+0.99)
+
+Gym Hero - Score: 1.97
+Because: mood match (+1.0), energy proximity (+0.97)
+
+City Cipher - Score: 0.95
+Because: energy proximity (+0.95)
+
+Drop Zone - Score: 0.95
+Because: energy proximity (+0.95)
+
+Iron Curtain - Score: 0.93
+Because: energy proximity (+0.93)
+```
+
 ---
 
 ## Experiments
