@@ -6,30 +6,27 @@
 
 ---
 
-## 2. Intended Use
+## 2. Goal / Task
 
-VibeFinder is designed to suggest songs from a small catalog based on a user's preferred genre, mood, and energy level. It is built for classroom exploration - specifically to demonstrate how content-based filtering works by matching song attributes to user preferences.
+VibeFinder tries to predict which songs a user will enjoy based on their stated preferences. Given a genre, mood, and energy level, it ranks every song in a 20-song catalog from most to least relevant and returns the top 5 with a plain-language explanation for each pick.
 
-This system is **not** intended for real users or production deployment. It assumes a single static taste profile per session and has no ability to learn from user behavior over time.
-
----
-
-## 3. How the Model Works
-
-VibeFinder scores every song in the catalog against a user's preferences and returns the top matches.
-
-For each song, the system asks three questions:
-
-1. **Does the genre match?** If so, the song gets +2.0 points. This is the heaviest signal - genre is treated as the most important filter.
-2. **Does the mood match?** A match adds +1.0 point. "Happy" and "intense" are treated as completely separate categories with no overlap.
-3. **How close is the energy level?** Energy is measured on a 0-1 scale. A song with energy 0.8 scores 1.0 proximity points when the user wants 0.8, and 0.5 points when the user wants 0.3. Closer = more points.
-4. **Acoustic bonus** (OOP interface only): If the user prefers acoustic music and the song is highly acoustic, it gets +0.5 extra points.
-
-Once every song has a total score, the system sorts them from highest to lowest and returns the top five. Each recommendation comes with a plain-language explanation like: "genre match (+2.0), mood match (+1.0), energy proximity (+0.82)."
+It does not predict whether a user will like a specific song in the way a streaming platform does. It simply finds the closest matches to what the user said they want right now.
 
 ---
 
-## 4. Data
+## 3. Algorithm Summary
+
+For each song in the catalog, the system adds up points based on three questions:
+
+- Does the song's genre match the user's preferred genre? If yes, +2.0 points. Genre is treated as the most important signal.
+- Does the song's mood match the user's preferred mood? If yes, +1.0 point.
+- How close is the song's energy to the user's target energy? A song with the exact right energy gets +1.0 point. A song with energy far from the target gets close to 0. The closer, the more points.
+
+The song with the highest total score is recommended first. If two songs tie, they appear in the order they were loaded from the file. Every recommendation includes a breakdown of which signals contributed to the score.
+
+---
+
+## 4. Data Used
 
 The catalog is `data/songs.csv`, containing **20 songs**.
 
@@ -37,67 +34,65 @@ The catalog is `data/songs.csv`, containing **20 songs**.
 
 **Moods represented:** happy, chill, intense, moody, focused, relaxed, energetic, romantic, sad, aggressive
 
-Songs were generated for this simulation and do not represent real-world releases. The starter set of 10 songs leaned heavily toward pop and lofi. Ten additional songs were added to cover underrepresented genres (hip-hop, classical, electronic, metal, country, r&b) and moods (sad, romantic, energetic, aggressive).
+**Features per song:** genre, mood, energy (0-1), tempo_bpm, valence (0-1), danceability (0-1), acousticness (0-1)
 
-**Limitations of the data:** All songs are fictional. Audio feature values (energy, valence, etc.) were chosen to be plausible but are not derived from actual audio analysis. The catalog is far too small for meaningful diversity in recommendations.
-
----
-
-## 5. Strengths
-
-- **Transparent and explainable**: Every recommendation includes a specific reason. There is no black box.
-- **Deterministic**: The same user profile always produces the same ranking - easy to test and debug.
-- **Works well for dominant taste profiles**: A user who strongly prefers one genre and mood (e.g., lofi + chill) will consistently see their preferred songs at the top.
-- **Fast**: Scoring 20 songs takes microseconds. The algorithm scales linearly.
+All songs are fictional and created for this simulation. Audio feature values were chosen to be plausible but are not derived from actual audio analysis tools. The catalog is far too small for real-world use - genres like jazz and rock have only one song each, which means users who prefer those genres get poor results through no fault of the algorithm.
 
 ---
 
-## 6. Limitations and Bias
+## 5. Observed Behavior / Biases
 
-- **Genre string matching is brittle**: "indie pop" and "pop" are treated as completely different genres even though they overlap musically. A user who types "Hip Hop" (capital H) gets zero genre points against "hip-hop" in the catalog.
-- **Filter bubble**: The genre weight (+2.0) is strong enough that users almost always see their own genre at the top. Songs from other genres are rarely surfaced, even when they closely match on energy and mood.
-- **Genre dominates over all other signals**: The adversarial "sad but high energy classical" profile exposed this most clearly. Both classical songs in the catalog scored above 3.0 despite having energy values (0.22, 0.18) nearly opposite to the user's target (0.9). Because genre + mood together award up to +3.0 and energy proximity can only ever add up to +1.0, the system can never recommend a high-energy song over a matching-genre song regardless of how wrong the energy feels. A listener who asked for high-energy classical would get two very slow, quiet pieces.
-- **Catalog sparsity silently degrades quality**: Users whose preferred genre has fewer than 3 songs in the catalog get only one strong recommendation. The rest of their top 5 are genre mismatches that scored on energy alone. This is invisible to the user - the system returns 5 results with no indication that 4 of them are poor fits.
-- **Only one continuous feature scored**: Valence, danceability, and tempo are stored but ignored by the scoring function. Two songs with very different vibes (e.g., very danceable vs. not) can score identically.
-- **No personalization over time**: The system has no memory of skips, replays, or explicit likes. Every session starts fresh.
+The most significant bias discovered through testing is that **genre dominates every other signal**. Because genre match awards +2.0 points and the maximum energy contribution is +1.0, the system can never recommend a song across genre lines even when every other attribute matches perfectly.
+
+This was exposed by an adversarial profile: a user who wanted classical, sad music at high energy (0.9). The system returned two very quiet classical pieces with energy values of 0.22 and 0.18 - nearly the opposite of what the user asked for. The genre and mood match (+3.0 combined) mathematically overpowered the energy mismatch penalty. A listener using this system would receive recommendations that sound nothing like what they described.
+
+A second pattern: **catalog size per genre silently determines recommendation quality**. Lofi users get three strong matches. Jazz users get one. The user experience is noticeably worse for underrepresented genres, but the system gives no indication that it ran out of good options.
 
 ---
 
-## 7. Evaluation
+## 6. Evaluation Process
 
-Six user profiles were tested - three standard and three adversarial:
+Six profiles were tested - three standard and three adversarial designed to find edge cases:
 
-| Profile | Top Result | Score | Observation |
+| Profile | Top Result | Score | Notes |
 |---|---|---|---|
-| Pop / happy / energy 0.8 | Sunrise City | 3.98 | All three signals matched - felt correct |
-| Lofi / chill / energy 0.4 | Midnight Coding | 3.98 | Two lofi/chill songs tied at top - felt correct |
-| Rock / intense / energy 0.9 | Storm Runner | 3.99 | Only one rock song exists; rest of list is genre misses |
-| Classical / sad / energy 0.9 | Moonlight Sonata Redux | 3.32 | Correct genre/mood but energy is wrong - system recommended quiet songs to someone who wanted high energy |
-| Jazz / relaxed / energy 0.5 | Coffee Shop Stories | 3.87 | Only one jazz song; positions 2-5 are energy-proximity filler |
-| Ambient / chill / energy 0.5 | Spacewalk Thoughts | 3.78 | Neutral energy target spread points broadly; mood became the only tiebreaker |
+| Pop / happy / 0.8 energy | Sunrise City | 3.98 | All signals matched - felt correct |
+| Lofi / chill / 0.4 energy | Midnight Coding | 3.98 | Two strong matches - felt correct |
+| Rock / intense / 0.9 energy | Storm Runner | 3.99 | Only 1 rock song; rest of top 5 are genre misses |
+| Classical / sad / 0.9 energy | Moonlight Sonata Redux | 3.32 | Genre/mood correct but energy completely wrong |
+| Jazz / relaxed / 0.5 energy | Coffee Shop Stories | 3.87 | Only 1 jazz song; positions 2-5 are filler |
+| Ambient / chill / 0.5 energy | Spacewalk Thoughts | 3.78 | Neutral energy spread points broadly |
 
-**What surprised me:** The classical/sad/high-energy profile was the most revealing. I expected the system to at least try to find high-energy songs, but genre + mood points (+3.0 max) are mathematically impossible to overcome with energy alone (+1.0 max). The system is structurally incapable of recommending across genre boundaries, regardless of how conflicting the other preferences are.
-
-**Weight shift experiment:** Halving genre weight (to +1.0) and doubling energy weight (to 0-2.0) caused "Rooftop Lights" (indie pop) to outrank "Gym Hero" (pop) for a pop profile - a genre miss beating a genre match purely on energy proximity. Rankings changed but did not improve. Original weights were restored.
-
-**Mood-only experiment:** Removing genre scoring made many unrelated songs tie in score, reducing recommendation usefulness significantly. Genre is load-bearing for this system to work at all.
+Two experiments were also run. Halving the genre weight and doubling the energy weight caused a non-pop song to outrank a pop song for a pop profile - the change did not improve results. Removing mood scoring entirely caused many unrelated songs to tie, making the output much less useful.
 
 ---
 
-## 8. Future Work
+## 7. Intended Use and Non-Intended Use
 
-- **Fuzzy genre matching**: Use embeddings or a genre taxonomy so that "indie pop" can partially match "pop," and "r&b" can partially match "soul."
-- **Score more features**: Add valence and danceability to the scoring function so the system can distinguish between a "happy party song" and a "happy slow ballad."
-- **Diversity penalty**: Prevent the top 5 from being dominated by one genre or artist. After selecting the top result, penalize other songs from the same genre slightly to encourage variety.
-- **Collaborative signals**: Track which songs users skip or replay and adjust weights over time. Pure content-based filtering misses the "this is technically my genre but I'm tired of it" signal entirely.
-- **Larger catalog**: 20 songs is too small to expose real recommendation patterns. A catalog of 500+ songs would better reveal how the scoring behaves across edge cases.
+**Intended use:** Classroom exploration of how content-based recommendation systems work. VibeFinder is designed to be read, modified, and tested - not deployed. It is useful for understanding how weighted scoring produces rankings and how small design choices (like genre weight) have large downstream effects on what users see.
+
+**Not intended for:**
+- Real users making real music decisions. The catalog is 20 fictional songs.
+- Evaluating whether a specific song is objectively good or bad.
+- Any context where fairness across user types matters. The system gives measurably worse results to users whose preferred genre has fewer catalog entries.
+- Production deployment of any kind.
+
+---
+
+## 8. Ideas for Improvement
+
+- **Fuzzy genre matching**: Replace exact string comparison with a similarity score so that "indie pop" partially matches "pop" and "r&b" partially matches "soul." This alone would fix many of the genre boundary problems.
+- **Score more features**: Add valence and danceability to the scoring function. Right now two songs can score identically despite sounding completely different. Valence would help distinguish a happy slow ballad from a happy dance track.
+- **Diversity penalty**: After picking the top result, reduce the score of other songs from the same artist or genre so the top 5 includes variety instead of clustering around one corner of the catalog.
 
 ---
 
 ## 9. Personal Reflection
 
-Building VibeFinder made the invisible visible: recommendations are math, not intuition. The system doesn't "know" that Midnight Coding sounds good while coding - it just knows that the numbers match. That gap between what the algorithm computes and what a human experiences as a good recommendation is where most of the interesting problems in AI live.
+**Biggest learning moment:** The adversarial profiles made the most important thing click. I knew genre had the highest weight, but I didn't realize what that meant mathematically until I saw a "high energy" user get two very quiet piano pieces as their top recommendations. Genre + mood together award up to +3.0 points. Energy can only ever add +1.0. That means the system is structurally incapable of recommending across genre lines no matter how wrong the other attributes feel. Writing the code is one thing - watching it fail in a specific, explainable way is what made the tradeoff real.
 
-The most surprising discovery was how much the genre weight controlled the entire output. A +2.0 bonus for genre match versus +1.0 for mood means that genre mismatches are nearly unrecoverable. Real platforms like Spotify likely use learned embeddings where "indie pop" and "pop" share 80% of their genre vector - so the gap isn't binary. This project made that design choice feel concrete and necessary, not abstract.
+**How AI tools helped - and where I had to check the output:** AI was useful for generating the initial scoring structure and suggesting the `sorted()` vs `.sort()` distinction. But the weight values (+2.0, +1.0) required human judgment - the AI suggested equal weights initially, and it took actually running profiles to see that equal weights made genre and energy feel interchangeable, which produced rankings that felt random. The adversarial profiles were also suggested by AI, but I had to run them myself to understand why the classical/sad/high-energy result was a problem, not just a curiosity.
 
-If I kept developing this, I'd start by replacing exact string matching with a small similarity lookup table, then add valence to the score. Those two changes alone would produce noticeably more interesting recommendations without changing the core architecture.
+**What surprised me about simple algorithms feeling like real recommendations:** Even with 20 songs and three scoring rules, the output feels plausible most of the time. A pop/happy user gets upbeat pop songs. A lofi/chill user gets quiet bedroom music. The system has no understanding of music at all - it is just arithmetic - but the results look exactly like what a streaming app might return. That gap between "this is just addition" and "this feels like a real recommendation" is where most of the confusion about AI comes from. People experience the output without seeing the math, so the system appears smarter than it is.
+
+**What I would try next:** Fuzzy genre matching using a small lookup table (pop is adjacent to indie pop; r&b is adjacent to soul) would be the highest-value change. After that, adding valence to the score would let the system distinguish between different kinds of "happy" or "chill" music. Neither requires a machine learning model - both are still rule-based - but together they would fix the most visible failures this version has.
