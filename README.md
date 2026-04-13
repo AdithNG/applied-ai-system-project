@@ -74,14 +74,48 @@ Each song in `data/songs.csv` has the following attributes:
 | danceability | float (0-1) | How suitable for dancing |
 | acousticness | float (0-1) | How acoustic (vs. electronic) the track is |
 
-### User Profile
+### User Profile Design
 
-The system uses two interfaces:
+A taste profile captures four things a user cares about:
 
-- **Functional** (used by `main.py`): a dict with keys `genre`, `mood`, and `energy`
+| Field | Type | What it represents |
+|---|---|---|
+| `favorite_genre` | string | The genre the user primarily listens to |
+| `favorite_mood` | string | The emotional tone the user wants right now |
+| `target_energy` | float (0-1) | How active or calm the user wants the music to feel |
+| `likes_acoustic` | bool | Whether the user prefers organic/acoustic over electronic sound |
+
+The three profiles used in this simulation are:
+
+```python
+# High-Energy Pop
+{"genre": "pop", "mood": "happy", "energy": 0.8}
+
+# Chill Lofi
+{"genre": "lofi", "mood": "chill", "energy": 0.4}
+
+# Deep Intense Rock
+{"genre": "rock", "mood": "intense", "energy": 0.9}
+```
+
+**Profile critique - can these profiles tell "intense rock" from "chill lofi" apart?**
+
+Yes, clearly. The two profiles share no matching values across any field:
+
+- Genre: rock vs lofi (completely different)
+- Mood: intense vs chill (opposite ends of the mood scale)
+- Energy: 0.9 vs 0.4 (a difference of 0.5, which is large on a 0-1 scale)
+
+A song like "Storm Runner" (rock, intense, energy 0.91) scores 3.99 for the rock profile and under 0.5 for the lofi profile. A song like "Library Rain" (lofi, chill, energy 0.35) scores 3.95 for the lofi profile and under 0.5 for the rock profile. The profiles are distinct enough that the system has no ambiguity between them.
+
+Where the profile design becomes limiting is for *mixed* preferences. A user who likes lofi but is in a high-energy mood today has no way to express that tension - the profile can only hold one energy target and one mood at a time. Real platforms handle this by updating the profile based on recent session behavior, something this simulation doesn't support.
+
+The system uses two interfaces in code:
+
+- **Functional** (used by `main.py`): a plain dict with keys `genre`, `mood`, and `energy`
 - **OOP** (used by tests): a `UserProfile` dataclass with `favorite_genre`, `favorite_mood`, `target_energy`, and `likes_acoustic`
 
-### Algorithm Recipe
+### Algorithm Recipe and Weight Rationale
 
 For each song, the system computes:
 
@@ -96,6 +130,20 @@ if user.likes_acoustic and song.acousticness > 0.6:
 ```
 
 Songs are then ranked with `sorted(..., reverse=True)` by score, and the top `k` are returned.
+
+**Why these weights?**
+
+Genre (+2.0) is worth the most because it is the hardest boundary in music taste. A rock fan who accidentally gets a jazz recommendation is noticeably unhappy in a way that a rock fan who gets a slightly-too-energetic rock song is not. Genre is a filter, not a preference.
+
+Mood (+1.0) is worth half of genre because it is contextual. The same person might want "happy" music in the morning and "chill" music at night. It matters, but a genre match with the wrong mood is still a better recommendation than the right mood in the wrong genre.
+
+Energy proximity (0-1) rewards closeness on a continuous scale. A song at 0.79 energy scores almost the same as one at 0.80 for a user targeting 0.80, while a song at 0.30 energy scores only 0.50 proximity points. This prevents the system from recommending music that is technically the right genre but feels completely wrong in tempo and intensity.
+
+**Expected biases at design time:**
+
+- Genre will dominate. With a +2.0 bonus, a song that matches genre but nothing else still outscores a song that matches mood and energy perfectly but misses genre. This is intentional but creates a filter bubble.
+- The catalog is small, so whichever genre has more songs will be better served. Starting with 3 lofi songs and 2 pop songs means lofi and pop users get more useful results than rock or classical users.
+- Exact string matching for genre and mood means typos or alternate spellings break the system entirely. "Hip-Hop" and "hip-hop" are treated as different genres.
 
 ### Data Flow
 
