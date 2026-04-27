@@ -17,8 +17,8 @@ from typing import Dict, Any, List, Tuple
 import os
 import sys
 
-# Allow running from the project root
-sys.path.insert(0, os.path.dirname(__file__))
+# Ensure project root is on sys.path regardless of how this file is invoked
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.recommender import load_songs, recommend_songs
 from src.rag_retriever import retrieve_context_for_recommendation

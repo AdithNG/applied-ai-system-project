@@ -11,7 +11,7 @@ multiple explanation calls in the same session.
 """
 
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 import anthropic
 from dotenv import load_dotenv
@@ -20,7 +20,7 @@ load_dotenv()
 
 MODEL = "claude-sonnet-4-6"
 
-_client: anthropic.Anthropic | None = None
+_client: Optional[anthropic.Anthropic] = None
 
 
 def _get_client() -> anthropic.Anthropic:

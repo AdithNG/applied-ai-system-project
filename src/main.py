@@ -12,6 +12,10 @@ Run with: python src/main.py
 Requires: ANTHROPIC_API_KEY in .env file (see .env.example)
 """
 
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import src.agent as agent
 
 
