@@ -1,0 +1,46 @@
+flowchart TD
+    A["🎵 User Input\ngenre · mood · energy"] --> B
+
+    B["Guardrails\nguardrails.py\nvalidate_user_prefs()"]
+    B -->|"valid"| C
+    B -->|"invalid"| ERR["❌ ValidationError\n(e.g. energy out of range)"]
+
+    C["Rule-Based Scorer\nrecommender.py\nscore_song() × 20 songs"]
+    C --> D["Top-K Candidates\nwith numeric scores"]
+
+    D --> E["RAG Retriever\nrag_retriever.py\nTF-IDF keyword search"]
+
+    KB1["genres.md"] --> E
+    KB2["moods.md"] --> E
+    KB3["music_theory.md"] --> E
+
+    E --> F["Relevant Passages\n(top 4 from 3 sources)"]
+
+    F --> G["Claude API\nai_explainer.py\ngenerate_explanation()"]
+    D --> G
+
+    G --> H["AI Explanations\nper song"]
+
+    H --> I["Confidence Scoring\nguardrails.py\ncompute_confidence()"]
+    D --> I
+
+    I --> OUT["✅ Final Recommendations\ntitle · score · AI explanation · confidence"]
+
+    subgraph Agent["agent.py — 5-Step Agentic Workflow"]
+        B
+        C
+        E
+        G
+        I
+    end
+
+    subgraph KnowledgeBase["Knowledge Base\ndata/knowledge_base/"]
+        KB1
+        KB2
+        KB3
+    end
+
+    style Agent fill:#f0f4ff,stroke:#4a6fa5
+    style KnowledgeBase fill:#f0fff4,stroke:#4a8c5c
+    style ERR fill:#fff0f0,stroke:#c0392b
+    style OUT fill:#f0fff4,stroke:#27ae60
