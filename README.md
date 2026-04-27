@@ -6,9 +6,9 @@ This system extends **Project 3: Music Recommender Simulation** (CodePath AI110,
 
 The original project was a rule-based content-filtering recommender. Given a user's preferred genre, mood, and energy level, it scored every song in a 20-song catalog using hardcoded weights (genre +2.0, mood +1.0, energy proximity up to +1.0) and returned ranked results with mechanical explanations like:
 
-> `Sunrise City — Score: 3.98 | Because: genre match (+2.0), mood match (+1.0), energy proximity (+0.98)`
+> `Sunrise City - Score: 3.98 | Because: genre match (+2.0), mood match (+1.0), energy proximity (+0.98)`
 
-It demonstrated how recommendation algorithms work but lacked any real AI intelligence — it couldn't explain *why* the match mattered to this listener, and it had no ability to reason about context or uncertainty.
+It demonstrated how recommendation algorithms work but lacked any real AI intelligence. It couldn't explain *why* the match mattered to this listener, and it had no ability to reason about context or uncertainty.
 
 ---
 
@@ -24,7 +24,15 @@ This version wraps the original scoring engine with a full AI pipeline:
 | **Guardrails** | Validates input before the pipeline runs and computes a confidence score for the output |
 | **Test Harness** | Evaluates the system on 7 predefined profiles and prints a pass/fail summary |
 
-The rule-based scorer from Project 3 is **unchanged** — the AI layer wraps it, giving it context and language it previously lacked.
+The rule-based scorer from Project 3 is **unchanged**. The AI layer wraps it, giving it context and language it previously lacked.
+
+### Stretch Features Implemented
+
+| Stretch Feature | Implementation |
+|---|---|
+| ✅ **RAG Enhancement** (+2) | Three custom knowledge base sources (`genres.md`, `moods.md`, `music_theory.md`) queried simultaneously via multi-source TF-IDF retrieval. Retrieved passages are passed directly to Claude to ground each explanation in real music context. |
+| ✅ **Agentic Workflow Enhancement** (+2) | `src/agent.py` runs a 5-step reasoning chain with every intermediate step logged to stdout: preference analysis, RAG retrieval, rule-based scoring, AI explanation generation, and confidence evaluation. |
+| ✅ **Test Harness / Evaluation Script** (+2) | `tests/test_harness.py` evaluates the system on 7 predefined profiles (including guardrail and adversarial cases) and prints a pass/fail summary with scores and confidence ratings. Run: `py tests/test_harness.py` |
 
 ---
 
@@ -32,37 +40,37 @@ The rule-based scorer from Project 3 is **unchanged** — the AI layer wraps it,
 
 ```
 User Input (genre, mood, energy)
-         │
-         ▼
-   ┌─────────────────┐
-   │   Guardrails     │  ← input validation (energy range, known genre/mood)
-   └──────┬──────────┘
-          │ valid input
-          ▼
-   ┌──────────────────────┐
-   │  Rule-Based Scorer    │  ← recommender.py (unchanged from Project 3)
-   │  score_song() × 20   │    returns top-K with numeric scores
-   └──────┬───────────────┘
-          │ top-K candidates
-          ▼
-   ┌──────────────────────┐       ┌──────────────────────────────┐
-   │    RAG Retriever      │──────▶│  Knowledge Base (3 sources)  │
-   │  rag_retriever.py     │◀──────│  genres.md / moods.md /      │
-   └──────┬───────────────┘       │  music_theory.md             │
-          │ relevant passages     └──────────────────────────────┘
-          ▼
-   ┌──────────────────────┐
-   │    Claude API         │  ← ai_explainer.py
-   │  (ai_explainer.py)   │    generates explanation per song
-   └──────┬───────────────┘
-          │ AI explanations
-          ▼
-   ┌──────────────────────┐
-   │  Confidence Scoring   │  ← guardrails.py compute_confidence()
-   │  + Quality Checks     │    warns if output is weak
-   └──────┬───────────────┘
-          │
-          ▼
+         |
+         v
+   +-----------------+
+   |   Guardrails    |  <- input validation (energy range, known genre/mood)
+   +------+----------+
+          | valid input
+          v
+   +----------------------+
+   |  Rule-Based Scorer   |  <- recommender.py (unchanged from Project 3)
+   |  score_song() x 20  |    returns top-K with numeric scores
+   +------+---------------+
+          | top-K candidates
+          v
+   +----------------------+       +------------------------------+
+   |    RAG Retriever     |------>|  Knowledge Base (3 sources)  |
+   |  rag_retriever.py    |<------|  genres.md / moods.md /      |
+   +------+---------------+       |  music_theory.md             |
+          | relevant passages     +------------------------------+
+          v
+   +----------------------+
+   |    Claude API        |  <- ai_explainer.py
+   |  (ai_explainer.py)   |    generates explanation per song
+   +------+---------------+
+          | AI explanations
+          v
+   +----------------------+
+   |  Confidence Scoring  |  <- guardrails.py compute_confidence()
+   |  + Quality Checks    |    warns if output is weak
+   +------+---------------+
+          |
+          v
    Final Recommendations with AI explanations + confidence score
 ```
 
@@ -98,19 +106,19 @@ cp .env.example .env
 ### 4. Run the recommender
 
 ```bash
-python src/main.py
+py src/main.py
 ```
 
 ### 5. Run the test harness
 
 ```bash
-python tests/test_harness.py
+py tests/test_harness.py
 ```
 
 ### 6. Run the original unit tests
 
 ```bash
-pytest tests/test_recommender.py
+py -m pytest tests/test_recommender.py
 ```
 
 ---
@@ -131,31 +139,30 @@ pytest tests/test_recommender.py
 
 [STEP 2] Retrieving music context from knowledge base
   Retrieved 4 passages:
-    • [genres.md — pop]
-    • [moods.md — happy]
-    • [music_theory.md — Energy (0.0 – 1.0)]
-    • [music_theory.md — Valence (0.0 – 1.0)]
+    - [genres.md - pop]
+    - [moods.md - happy]
+    - [music_theory.md - Energy (0.0 - 1.0)]
+    - [music_theory.md - Valence (0.0 - 1.0)]
 
 [STEP 3] Scoring song candidates with rule-based engine
   Top 5 candidates (rule-based scores):
-   3.98  Sunrise City by Neon Echo [pop]
-   2.87  Gym Hero by PowerTrack [pop]
+   4.41  Sunrise City by Neon Echo [pop]
+   3.28  Gym Hero by Max Pulse [pop]
    ...
 
 [STEP 4] Generating AI explanations via Claude
   Explaining #1: Sunrise City... done
 
 [STEP 5] Evaluating recommendation confidence
-  Overall confidence score: 0.71
+  Overall confidence score: 0.61
 
 RECOMMENDATIONS FOR: High-Energy Pop
-  #1  Sunrise City — Neon Echo
-       Genre: pop | Mood: happy | Energy: 0.82 | Score: 3.98
-       This track is a near-perfect match for your preferences — its bright,
-       summery pop production and 0.82 energy sit right at your target level,
-       while the upbeat happy mood aligns exactly with what you're seeking.
-       The high danceability (0.79) and valence (0.84) confirm this is designed
-       to energize and uplift.
+  #1  Sunrise City - Neon Echo
+       Genre: pop | Mood: happy | Energy: 0.82 | Score: 4.41
+       This track is a near-perfect match. Its bright, summery pop production
+       and 0.82 energy sit right at your target level, while the upbeat happy
+       mood aligns exactly with what you're seeking. The high danceability (0.79)
+       and valence (0.84) confirm this is designed to energize and uplift.
 ```
 
 ---
@@ -168,7 +175,7 @@ RECOMMENDATIONS FOR: High-Energy Pop
 ```
 
 **Sample AI explanation:**
-> The calm, focused texture of this track sits perfectly at your target energy — the 0.42 level and 78 BPM tempo create exactly the unhurried pace lo-fi listeners seek during focused work. Its high acousticness (0.71) adds a warm, organic quality that distinguishes it from more electronic lo-fi, and the detailed "calm focused ambient" mood tag confirms it's engineered for the same headspace you're in.
+> The calm, focused texture of this track sits perfectly at your target energy. The 0.42 level and 78 BPM tempo create exactly the unhurried pace lo-fi listeners seek during focused work. Its high acousticness (0.71) adds a warm, organic quality that distinguishes it from more electronic lo-fi, and the detailed "calm focused ambient" mood tag confirms it's engineered for the same headspace you're in.
 
 ---
 
@@ -189,10 +196,10 @@ ValidationError: 'energy' must be between 0.0 and 1.0, got: 1.5
 ## Design Decisions
 
 **Why keep the rule-based scorer?**
-The original scoring engine is fast, transparent, and correct — it reliably surfaces genre/mood/energy matches. Rather than replacing it with an LLM (which would be slower, more expensive, and less consistent), the AI layer adds *context and language* on top of the proven numeric foundation.
+The original scoring engine is fast, transparent, and correct. It reliably surfaces genre/mood/energy matches. Rather than replacing it with an LLM (which would be slower, more expensive, and less consistent), the AI layer adds context and language on top of the proven numeric foundation.
 
 **Why keyword-based RAG instead of vector embeddings?**
-For a 20-song catalog and a 3-file knowledge base, vector embeddings would be overengineered. TF-IDF keyword overlap is fast, requires no external services, and is fully explainable — you can see exactly why a passage was retrieved. The retrieval quality is strong because the knowledge base terms closely match the genre/mood vocabulary in the dataset.
+For a 20-song catalog and a 3-file knowledge base, vector embeddings would be overengineered. TF-IDF keyword overlap is fast, requires no external services, and is fully explainable. The retrieval quality is strong because the knowledge base terms closely match the genre/mood vocabulary in the dataset.
 
 **Why cache the system prompt?**
 The Claude API's `cache_control` flag on the system prompt avoids re-sending the full instruction text on every API call. With 5+ explanation calls per profile, caching reduces both latency and cost.
@@ -200,7 +207,7 @@ The Claude API's `cache_control` flag on the system prompt avoids re-sending the
 **Trade-offs accepted:**
 - The knowledge base is manually written, which means it can go stale if new genres are added to the dataset.
 - Keyword retrieval fails on synonyms (e.g., "lofi" vs "lo-fi"). A vector-based approach would handle this better at the cost of added complexity.
-- AI explanations add ~1–2 seconds per song. For a 5-song result set, that's 5–10 seconds of API calls per profile.
+- AI explanations add 1-2 seconds per song. For a 5-song result set, that's 5-10 seconds of API calls per profile.
 
 ---
 
@@ -218,9 +225,9 @@ The test harness (`tests/test_harness.py`) runs 7 profiles:
 | Invalid energy (1.5) | Guardrail test | PASS (error caught) |
 | Unknown genre warning | Guardrail test | PASS (warning issued) |
 
-The original 10 unit tests in `tests/test_recommender.py` all continue to pass — the new AI layer doesn't touch the scoring engine.
+The original unit tests in `tests/test_recommender.py` all continue to pass. The new AI layer does not touch the scoring engine.
 
-**What didn't work well:** Confidence scores are low (~0.2–0.3) for underrepresented genres (jazz, classical) because many songs score similarly in the absence of a genre match. This is a known limitation of the small catalog, not a bug.
+**What didn't work well:** Confidence scores are low (~0.2-0.3) for underrepresented genres (jazz, classical) because many songs score similarly in the absence of a genre match. This is a known limitation of the small catalog, not a bug.
 
 ---
 
@@ -232,7 +239,7 @@ See [model_card.md](model_card.md) for the full reflection on AI collaboration, 
 
 ## Demo Walkthrough
 
-[Loom video link — add before submission]
+[Loom video link - add before submission]
 
 ---
 
@@ -242,7 +249,7 @@ See [model_card.md](model_card.md) for the full reflection on AI collaboration, 
 applied-ai-system-project/
 ├── src/
 │   ├── recommender.py        # Original Project 3 scoring engine (unchanged)
-│   ├── main.py               # Entry point — runs 3 profiles through agent pipeline
+│   ├── main.py               # Entry point - runs 3 profiles through agent pipeline
 │   ├── agent.py              # 5-step agentic workflow with step logging
 │   ├── ai_explainer.py       # Claude API integration for explanations
 │   ├── rag_retriever.py      # Knowledge base loader and context retriever
