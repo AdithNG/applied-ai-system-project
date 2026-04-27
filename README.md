@@ -239,7 +239,7 @@ See [model_card.md](model_card.md) for the full reflection on AI collaboration, 
 
 ## Demo Walkthrough
 
-[Loom video link - add before submission]
+[Watch the demo walkthrough on Loom](https://www.loom.com/share/c2cd9312c8574c2caf14840aff39a226)
 
 ---
 
