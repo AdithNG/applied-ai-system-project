@@ -1,98 +1,120 @@
-# Model Card: Music Recommender Simulation
+# Model Card: Applied AI Music Recommender
 
 ## 1. Model Name
 
-**VibeFinder 1.0**
+**VibeFinder 2.0** — an AI-augmented music recommendation system built on the rule-based VibeFinder 1.0 (Project 3).
 
 ---
 
 ## 2. Goal / Task
 
-VibeFinder tries to predict which songs a user will enjoy based on their stated preferences. Given a genre, mood, and energy level, it ranks every song in a 20-song catalog from most to least relevant and returns the top 5 with a plain-language explanation for each pick.
+VibeFinder 2.0 recommends songs from a catalog based on a listener's stated preferences (genre, mood, energy level), then uses the Claude AI model and a music knowledge base to generate rich, context-aware explanations for each recommendation.
 
-It does not predict whether a user will like a specific song in the way a streaming platform does. It simply finds the closest matches to what the user said they want right now.
+It extends the original rule-based system by answering not just *which* songs match, but *why* they match in a way that is meaningful to the listener.
 
 ---
 
 ## 3. Algorithm Summary
 
-For each song in the catalog, the system adds up points based on three questions:
+The system runs in five steps:
 
-- Does the song's genre match the user's preferred genre? If yes, +2.0 points. Genre is treated as the most important signal.
-- Does the song's mood match the user's preferred mood? If yes, +1.0 point.
-- How close is the song's energy to the user's target energy? A song with the exact right energy gets +1.0 point. A song with energy far from the target gets close to 0. The closer, the more points.
+1. **Input validation** — guardrails check that energy is in range, genre/mood are known
+2. **Rule-based scoring** — the original Project 3 weighted scorer ranks all 20 songs (genre +2.0, mood +1.0, energy proximity 0–1.0)
+3. **RAG context retrieval** — a TF-IDF keyword retriever queries three knowledge base files (genres.md, moods.md, music_theory.md) and returns the most relevant passages
+4. **AI explanation generation** — Claude (claude-sonnet-4-6) generates a 2–3 sentence natural language explanation for each top song, using the retrieved passages as grounding context
+5. **Confidence scoring** — the score gap between #1 and #2 is used to compute a confidence value (0–1) for the overall recommendation
 
-The song with the highest total score is recommended first. If two songs tie, they appear in the order they were loaded from the file. Every recommendation includes a breakdown of which signals contributed to the score.
+The numeric ranking comes entirely from the rule-based engine. Claude only adds language and context.
 
 ---
 
 ## 4. Data Used
 
-The catalog is `data/songs.csv`, containing **20 songs**.
+**Song catalog:** `data/songs.csv` — 20 fictional songs with 15 attributes each (genre, mood, energy, tempo_bpm, valence, danceability, acousticness, popularity, liveness, speechiness, detailed_mood, release_decade, id, title, artist).
 
-**Genres represented:** pop, lofi, rock, ambient, jazz, synthwave, indie pop, hip-hop, country, r&b, classical, electronic, metal
+**Knowledge base:**
+- `data/knowledge_base/genres.md` — descriptions of 10 music genres
+- `data/knowledge_base/moods.md` — descriptions of 9 mood categories
+- `data/knowledge_base/music_theory.md` — explanations of 9 audio attributes (energy, tempo, valence, etc.)
 
-**Moods represented:** happy, chill, intense, moody, focused, relaxed, energetic, romantic, sad, aggressive
+**AI model:** Anthropic Claude (claude-sonnet-4-6), accessed via the Anthropic API. The model was not fine-tuned; it uses a structured system prompt and per-request context injection.
 
-**Features per song:** genre, mood, energy (0-1), tempo_bpm, valence (0-1), danceability (0-1), acousticness (0-1)
-
-All songs are fictional and created for this simulation. Audio feature values were chosen to be plausible but are not derived from actual audio analysis tools. The catalog is far too small for real-world use - genres like jazz and rock have only one song each, which means users who prefer those genres get poor results through no fault of the algorithm.
+All songs are fictional. Knowledge base descriptions are manually written.
 
 ---
 
-## 5. Observed Behavior / Biases
+## 5. Observed Behavior and Biases
 
-The most significant bias discovered through testing is that **genre dominates every other signal**. Because genre match awards +2.0 points and the maximum energy contribution is +1.0, the system can never recommend a song across genre lines even when every other attribute matches perfectly.
+**Inherited from Project 3:**
+- Genre dominates scoring (+2.0 vs max +1.0 for energy), so a genre match with wrong energy outranks a perfect energy match in a different genre. A "classical, sad, high energy" user still gets quiet classical pieces.
+- Underrepresented genres (jazz, rock) give poor results because the catalog has only 1–2 songs per genre.
+- Exact string matching means "Hip Hop" ≠ "hip-hop".
 
-This was exposed by an adversarial profile: a user who wanted classical, sad music at high energy (0.9). The system returned two very quiet classical pieces with energy values of 0.22 and 0.18 - nearly the opposite of what the user asked for. The genre and mood match (+3.0 combined) mathematically overpowered the energy mismatch penalty. A listener using this system would receive recommendations that sound nothing like what they described.
-
-A second pattern: **catalog size per genre silently determines recommendation quality**. Lofi users get three strong matches. Jazz users get one. The user experience is noticeably worse for underrepresented genres, but the system gives no indication that it ran out of good options.
+**New in VibeFinder 2.0:**
+- AI explanations are generally accurate but occasionally hallucinate specific claims about a song's production style that aren't supported by the CSV attributes. Claude cannot hear the music — it only sees numbers.
+- RAG retrieval is keyword-based and fails on synonyms (e.g., "lofi" and "lo-fi" are not matched as equivalent).
+- Confidence scores are systematically low (~0.2) for underrepresented genres because multiple songs score similarly when no genre match is available. This is an honest reflection of weak recommendations, but it may alarm users unnecessarily.
 
 ---
 
 ## 6. Evaluation Process
 
-Six profiles were tested - three standard and three adversarial designed to find edge cases:
+**Test harness** (`tests/test_harness.py`) — 7 profiles covering standard use, adversarial edge cases, and guardrail behavior:
 
-| Profile | Top Result | Score | Notes |
-|---|---|---|---|
-| Pop / happy / 0.8 energy | Sunrise City | 3.98 | All signals matched - felt correct |
-| Lofi / chill / 0.4 energy | Midnight Coding | 3.98 | Two strong matches - felt correct |
-| Rock / intense / 0.9 energy | Storm Runner | 3.99 | Only 1 rock song; rest of top 5 are genre misses |
-| Classical / sad / 0.9 energy | Moonlight Sonata Redux | 3.32 | Genre/mood correct but energy completely wrong |
-| Jazz / relaxed / 0.5 energy | Coffee Shop Stories | 3.87 | Only 1 jazz song; positions 2-5 are filler |
-| Ambient / chill / 0.5 energy | Spacewalk Thoughts | 3.78 | Neutral energy spread points broadly |
+| Profile | Expected | Result |
+|---|---|---|
+| High-Energy Pop | Pop in top-3 | PASS |
+| Chill Lo-Fi | Lofi in top-3 | PASS |
+| Deep Intense Rock | Rock in top-3 | PASS |
+| Adversarial: Sad Classical | Classical in top-3 (low threshold) | PASS |
+| Jazz Relaxed | Jazz in top-3 (low threshold) | PASS |
+| Invalid energy (1.5) | ValidationError raised | PASS |
+| Unknown genre "synthwave" | Warning issued | PASS |
 
-Two experiments were also run. Halving the genre weight and doubling the energy weight caused a non-pop song to outrank a pop song for a pop profile - the change did not improve results. Removing mood scoring entirely caused many unrelated songs to tie, making the output much less useful.
-
----
-
-## 7. Intended Use and Non-Intended Use
-
-**Intended use:** Classroom exploration of how content-based recommendation systems work. VibeFinder is designed to be read, modified, and tested - not deployed. It is useful for understanding how weighted scoring produces rankings and how small design choices (like genre weight) have large downstream effects on what users see.
-
-**Not intended for:**
-- Real users making real music decisions. The catalog is 20 fictional songs.
-- Evaluating whether a specific song is objectively good or bad.
-- Any context where fairness across user types matters. The system gives measurably worse results to users whose preferred genre has fewer catalog entries.
-- Production deployment of any kind.
+All 10 original Project 3 unit tests continue to pass — the AI layer does not alter the underlying scoring logic.
 
 ---
 
-## 8. Ideas for Improvement
+## 7. Limitations and Potential Misuse
 
-- **Fuzzy genre matching**: Replace exact string comparison with a similarity score so that "indie pop" partially matches "pop" and "r&b" partially matches "soul." This alone would fix many of the genre boundary problems.
-- **Score more features**: Add valence and danceability to the scoring function. Right now two songs can score identically despite sounding completely different. Valence would help distinguish a happy slow ballad from a happy dance track.
-- **Diversity penalty**: After picking the top result, reduce the score of other songs from the same artist or genre so the top 5 includes variety instead of clustering around one corner of the catalog.
+**Limitations:**
+- 20-song catalog is far too small for real deployment. Genre coverage is uneven.
+- Claude explanations reflect the attributes in the CSV — they cannot assess actual sound quality, production value, or cultural context.
+- No user history or session learning. Every run treats the listener as a fresh user.
+- API calls add 1–2 seconds per explanation. A 5-song result set takes 5–10 seconds.
+
+**Misuse concerns:**
+- The AI explanations sound authoritative. A user might trust them more than warranted for a small, fictional catalog.
+- Confidence scores could be misinterpreted as a measure of explanation accuracy rather than recommendation differentiation.
+- The system could reinforce genre filter bubbles — a pop listener will always receive pop recommendations, with no mechanism for discovery or serendipity.
+
+**Safeguards in place:**
+- Input validation rejects out-of-range energy values and warns on unknown genres/moods.
+- Low-confidence warnings alert users when recommendations are weakly differentiated.
+- The README and model card are explicit that this is an educational prototype, not a production system.
 
 ---
 
-## 9. Personal Reflection
+## 8. Reflection on AI Collaboration
 
-**Biggest learning moment:** The adversarial profiles made the most important thing click. I knew genre had the highest weight, but I didn't realize what that meant mathematically until I saw a "high energy" user get two very quiet piano pieces as their top recommendations. Genre + mood together award up to +3.0 points. Energy can only ever add +1.0. That means the system is structurally incapable of recommending across genre lines no matter how wrong the other attributes feel. Writing the code is one thing - watching it fail in a specific, explainable way is what made the tradeoff real.
+**How AI was used during development:**
 
-**How AI tools helped - and where I had to check the output:** AI was useful for generating the initial scoring structure and suggesting the `sorted()` vs `.sort()` distinction. But the weight values (+2.0, +1.0) required human judgment - the AI suggested equal weights initially, and it took actually running profiles to see that equal weights made genre and energy feel interchangeable, which produced rankings that felt random. The adversarial profiles were also suggested by AI, but I had to run them myself to understand why the classical/sad/high-energy result was a problem, not just a curiosity.
+Claude Code (this assistant) was used throughout the project for code generation, architecture planning, and debugging. The workflow was collaborative — I described the desired behavior, the AI proposed implementations, and I reviewed, adjusted, and integrated them.
 
-**What surprised me about simple algorithms feeling like real recommendations:** Even with 20 songs and three scoring rules, the output feels plausible most of the time. A pop/happy user gets upbeat pop songs. A lofi/chill user gets quiet bedroom music. The system has no understanding of music at all - it is just arithmetic - but the results look exactly like what a streaming app might return. That gap between "this is just addition" and "this feels like a real recommendation" is where most of the confusion about AI comes from. People experience the output without seeing the math, so the system appears smarter than it is.
+**One instance where AI suggestions were genuinely helpful:**
 
-**What I would try next:** Fuzzy genre matching using a small lookup table (pop is adjacent to indie pop; r&b is adjacent to soul) would be the highest-value change. After that, adding valence to the score would let the system distinguish between different kinds of "happy" or "chill" music. Neither requires a machine learning model - both are still rule-based - but together they would fix the most visible failures this version has.
+When designing the RAG retriever, the initial instinct was to use a vector embedding library (like sentence-transformers) for semantic search. Claude suggested that for a 3-file knowledge base with ~30 passages, TF-IDF keyword overlap would be simpler, faster, and more transparent — and that the vocabulary in the knowledge base files was specific enough that keyword matching would perform nearly as well as embeddings. This was correct. The simpler approach works well and makes the retrieval logic easy to understand and debug.
+
+**One instance where AI suggestions were flawed or needed correction:**
+
+In the first draft of `agent.py`, the agent imported `from recommender import load_songs` using a relative import path that assumed the script was run from inside the `src/` directory. This caused `ModuleNotFoundError` when running `python src/main.py` from the project root. The fix — adding `sys.path.insert(0, ...)` and using `from src.recommender import ...` — required diagnosing the import resolution issue manually. The AI had generated working code for a different execution context than the one actually being used.
+
+---
+
+## 9. Ideas for Improvement
+
+- **Fuzzy genre matching**: A similarity table (pop ↔ indie pop, r&b ↔ soul) would fix the hard genre boundary problem without requiring a machine learning model.
+- **Vector-based RAG**: Replacing TF-IDF with sentence embeddings would handle synonym variation and improve retrieval for niche queries.
+- **Confidence-aware explanations**: When confidence is low, Claude should acknowledge uncertainty in the explanation ("This is a partial match — no songs in the catalog closely fit your genre preference").
+- **Diverse output by default**: A diversity penalty (similar to `recommend_diverse()` from Project 3) should be the default, not an option.
+- **Caching explanations**: The same song + similar profile combinations could reuse cached explanations to reduce API costs.

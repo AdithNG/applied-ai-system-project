@@ -1,67 +1,66 @@
-# Reflection: Comparing User Profile Outputs
+# Reflection: Applied AI Music Recommender (Project 4)
 
-## Profile Comparisons
+## What This Project Taught Me About AI
 
-### High-Energy Pop vs. Chill Lofi
+Building VibeFinder 2.0 made one thing clear: the most valuable part of adding AI to a system is not the output — it's the *reasoning layer* that connects inputs to outputs in a way humans can understand.
 
-**High-Energy Pop** (`genre: pop, mood: happy, energy: 0.8`)
-Top results: Sunrise City (3.98), Gym Hero (2.87), Rooftop Lights (1.96)
+The original recommender (Project 3) was correct but opaque. It told you a song scored 3.98 and gave you a breakdown of the math. This project adds a layer that says: *here's why these numbers matter for you specifically, given what you said you're looking for*. That shift from arithmetic to explanation is where AI creates real value.
 
-**Chill Lofi** (`genre: lofi, mood: chill, energy: 0.4`)
-Top results: Midnight Coding (3.98), Library Rain (3.95), Focus Flow (3.00)
-
-**What changed and why:** The top scores are nearly identical (3.98 each), but the songs are completely different. Both profiles benefited from having multiple catalog songs in their preferred genre - pop has 2 exact matches, lofi has 3. The lofi profile actually produces tighter top results (3.98 and 3.95) because two lofi/chill songs match almost perfectly on energy, while the pop profile's #2 result (Gym Hero) only matches genre - not mood - because Gym Hero is tagged as "intense" rather than "happy." This shows how much mood alignment matters within a matching genre.
+The more surprising lesson was how little the underlying scoring changed. The rule-based engine from Project 3 still does all the ranking. Claude never decides which song to recommend — it only describes the decision after the fact. This is a deliberate design choice and, I think, the right one: transparent rule-based logic is easier to audit and debug than a black-box LLM ranking. The AI handles language; the rules handle decisions.
 
 ---
 
-### Chill Lofi vs. Deep Intense Rock
+## Limitations and Biases
 
-**Chill Lofi** (`genre: lofi, mood: chill, energy: 0.4`)
-Top results: Midnight Coding (3.98), Library Rain (3.95), Focus Flow (3.00)
+**Genre domination (inherited from Project 3):** The +2.0 genre weight means genre match always outranks energy mismatch. A "high-energy classical" user still gets quiet piano pieces. This is a structural problem, not a bug.
 
-**Deep Intense Rock** (`genre: rock, mood: intense, energy: 0.9`)
-Top results: Storm Runner (3.99), Gym Hero (1.97), City Cipher (0.95)
+**Small catalog:** 20 songs. Underrepresented genres (jazz, rock) give poor results because the algorithm runs out of matching songs after the first pick. Confidence scores are systematically low for these users.
 
-**What changed and why:** The rock profile reveals a major limitation - there is only one rock song in the catalog (Storm Runner), so it dominates at 3.99 while #2 and beyond drop sharply to under 2.0. The lofi profile had 3 matching songs, giving it a rich and coherent top-3. The rock user's #2 pick (Gym Hero) is a pop/intense song - it matches on mood and energy but not genre, earning less than half the score of #1. This illustrates how catalog size per genre directly determines recommendation quality. A rock fan using this system gets worse recommendations not because the algorithm is wrong, but because the data doesn't support them.
+**AI explanation hallucinations:** Claude can only see the attributes in the CSV — it cannot hear the music. Occasionally it makes specific claims about a song's "warm production" or "organic texture" that aren't directly supported by the data. These sound authoritative but may be invented.
 
----
-
-### High-Energy Pop vs. Deep Intense Rock
-
-**High-Energy Pop** (`genre: pop, mood: happy, energy: 0.8`)
-Top results: Sunrise City (3.98), Gym Hero (2.87), Rooftop Lights (1.96)
-
-**Deep Intense Rock** (`genre: rock, mood: intense, energy: 0.9`)
-Top results: Storm Runner (3.99), Gym Hero (1.97), City Cipher (0.95)
-
-**What changed and why:** Interestingly, "Gym Hero" appears in both top-5 lists but for different reasons. For the pop profile it ranks #2 because of genre match; for the rock profile it ranks #2 because of mood + energy match. This is the same song surfacing for very different users - which in a real system could be a sign that the song is a useful "bridge" between audiences, or it could signal that the scoring is too coarse to distinguish between them. The energy levels are both high (0.8 vs 0.9), which means energy proximity rewards both profiles similarly for high-energy songs regardless of genre.
+**Keyword RAG limitations:** The retriever uses TF-IDF keyword overlap, which fails on synonyms. A user querying for "lo-fi" (hyphenated) would not retrieve passages about "lofi" (unhyphenated).
 
 ---
 
-### High-Energy Pop vs. Adversarial - Sad but High Energy Classical
+## Could This System Be Misused?
 
-**High-Energy Pop** (`genre: pop, mood: happy, energy: 0.8`)
-Top results: Sunrise City (3.98), Gym Hero (2.87), Rooftop Lights (1.96)
+The main risk is over-trust. The AI explanations are fluent and specific, which makes them sound like expert analysis. A user might take "this track's acousticness of 0.71 perfectly complements your preference for organic textures" as genuine insight when it is actually a template applied to a number.
 
-**Sad but High Energy Classical** (`genre: classical, mood: sad, energy: 0.9`)
-Top results: Moonlight Sonata Redux (3.32), Requiem for a Tuesday (3.28), Storm Runner (0.99)
-
-**What changed and why:** The high-energy pop profile gets songs that sound energetic and upbeat - which is exactly what you would expect. The classical/sad/high-energy profile is the interesting one. Even though the user asked for energy 0.9 (very high intensity), the system recommended two very slow, quiet piano pieces with energy values of 0.22 and 0.18. Why? Because genre and mood together award up to 3.0 points, but energy can only ever contribute 1.0 point at most. The math makes it impossible for a high-energy song to beat a genre/mood match, no matter how wrong the energy feels. Think of it like this: if you ask a music store clerk for "classical sad music," they will hand you quiet piano pieces - even if you specifically said you wanted something intense. The genre instruction overrides everything else.
-
----
-
-### Chill Lofi vs. Adversarial - Underrepresented Genre (Jazz)
-
-**Chill Lofi** (`genre: lofi, mood: chill, energy: 0.4`)
-Top results: Midnight Coding (3.98), Library Rain (3.95), Focus Flow (3.00)
-
-**Jazz / relaxed / energy 0.5** (`genre: jazz, mood: relaxed, energy: 0.5`)
-Top results: Coffee Shop Stories (3.87), Golden Fields (1.94), Late Night Thoughts (0.98)
-
-**What changed and why:** The lofi profile gets three strong recommendations because there are three lofi songs in the catalog. The jazz profile only gets one strong recommendation because there is only one jazz song. After Coffee Shop Stories, the system has nothing left in that genre, so it falls back to songs that happen to have similar energy levels - a country song, an r&b song, a pop song. From a user's perspective, the lofi fan and the jazz fan are equally specific about what they want. But the lofi fan gets a much better experience simply because the catalog was built with more of their music. This is an example of algorithmic unfairness caused by data imbalance, not bad logic.
+**Mitigations built in:**
+- Confidence scores surface when recommendations are weakly differentiated
+- The README and model card are explicit that this is an educational prototype
+- Input validation prevents nonsensical queries from reaching the AI layer
 
 ---
 
-## Overall Takeaway
+## What Surprised Me During Testing
 
-The most consistent pattern across all six profiles: **genre match dominates, and catalog coverage determines quality**. A song that matches genre but nothing else still scores 2.0+, while a song that matches mood and has near-perfect energy but misses genre tops out around 1.96. The adversarial profiles made this even clearer - the system is structurally incapable of recommending across genre lines regardless of how conflicting the other preferences are. And when a genre has few songs in the catalog, the user silently gets a worse experience with no explanation. Both of these are real problems in production recommender systems, not just in this simulation.
+Two things:
+
+**1. The confidence scores were more informative than expected.** For well-represented genres (pop, lofi), confidence hovered around 0.6–0.8, correctly reflecting that there was a clear winner. For jazz and classical, it dropped to 0.2–0.3, accurately signaling that many songs were tied near the top. The formula (`margin / (top_score × 0.4 + 0.1)`) was a first guess — seeing it behave sensibly without tuning was a genuine surprise.
+
+**2. The RAG retrieval improved explanation coherence noticeably.** Early tests without context injection produced generic explanations ("this song matches your energy preference"). With the knowledge base passages providing genre and mood context, Claude's explanations became specific and grounded. The difference was visible immediately, which validated the RAG approach over a simple "ask Claude with no context" approach.
+
+---
+
+## AI Collaboration During This Project
+
+**Claude Code (this assistant)** was used for architecture planning, code generation, and debugging throughout the project.
+
+**One instance where AI suggestions were helpful:**
+
+When designing the RAG component, the suggestion to use TF-IDF keyword overlap instead of vector embeddings was correct and practical. For a 3-file knowledge base with ~30 passages, embeddings would have required an additional dependency (`sentence-transformers` or OpenAI embeddings) and added complexity with minimal quality improvement. The simpler approach was recommended with clear reasoning — and it worked exactly as described.
+
+**One instance where AI suggestions were flawed:**
+
+The first draft of `agent.py` used bare relative imports (`from recommender import load_songs`) that assumed the script was executed from inside the `src/` directory. Running `python src/main.py` from the project root caused a `ModuleNotFoundError`. The fix required diagnosing the Python path resolution issue and adjusting to `from src.recommender import ...` with a `sys.path.insert()` guard. The AI had generated syntactically valid code for a different execution context than the one in use — a reminder that generated code needs to be tested in the actual environment, not just reviewed for syntax.
+
+---
+
+## Future Improvements
+
+1. **Fuzzy genre matching** — a small lookup table (pop ↔ indie pop, r&b ↔ soul) would fix the hard genre boundary without requiring ML
+2. **Vector-based RAG** — sentence embeddings would handle synonym variation and improve retrieval quality
+3. **Confidence-aware Claude prompting** — when confidence is low, the prompt should instruct Claude to acknowledge the uncertainty explicitly
+4. **Larger catalog** — 20 songs is a proof-of-concept; real utility requires hundreds of songs per genre
+5. **Session learning** — tracking which recommendations a user accepts or skips would let the system update weights dynamically
